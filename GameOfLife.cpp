@@ -4,15 +4,13 @@
 #include <thread>
 #include <boost/program_options.hpp>
 #include <memory>
-
 #include <fstream>
-
 #include <string>
 #include <boost/algorithm/string.hpp>
 #include <sstream>
 //used 7.4 g++ compiler for
 //#include <experimental/filesystem>
-
+#include <SFML/Graphics.hpp>
 #include <filesystem>
 using namespace std;
 using namespace boost::program_options;
@@ -20,14 +18,94 @@ inline int b(int i, int N);
 
 void SetVariables(int &x, int &y, int &xsize, int &ysize, int &iter, float &speed, string &Patern, int &argc, const char **argv);
 void Next(std::vector<std::vector<bool>> &Board);
-void Draw(std::vector<std::vector<bool>> const &Board, float speed);
+template <bool Use_GUI>
+void Draw_result(std::vector<std::vector<bool>> const &Board, float speed);
 void Place(std::vector<std::vector<bool>> &Board, int x, int y, const std::vector<std::vector<bool>> &pattern);
 
 inline string ReadFromFile(string filename, int &xpattern, int &ypattern);
 void Decoding(std::vector<std::vector<bool>> &Board, string &repr, int x, int y);
 void SaveToFile(vector<vector<bool>> Board, string filename);
 
-int main(int argc, char const *argv[])
+template <>
+void Draw_result<false>(std::vector<std::vector<bool>> const &Board, float speed)
+{
+    for (size_t i = 0; i < 10; i++)
+    {
+        std::cout << "\n";
+    }
+
+    for (int i = 0; i < (int)Board.size(); i++)
+    {
+        for (int j = 0; j < (int)Board[0].size(); j++)
+        {
+            if (Board[i][j])
+                std::cout << 0;
+            else
+                std::cout << " ";
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << "\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds((int)(1000 / speed)));
+}
+constexpr int cells_size = 8;
+constexpr int cells_distance = 1;
+
+template <>
+void Draw_result<true>(std::vector<std::vector<bool>> const &Board, float speed)
+{
+
+    static sf::RenderWindow window(sf::VideoMode((Board.size()+1)*(cells_size+cells_distance), (Board[0].size()+1)*(cells_size+cells_distance)), "GameOfLife");
+    sf::RectangleShape shape(sf::Vector2f(cells_size, cells_size));
+    sf::RectangleShape temp(sf::Vector2f(cells_size, cells_size));
+    shape.setFillColor(sf::Color::Green);
+    shape.setFillColor(sf::Color::White);
+
+ //   window.setFramerateLimit(speed);
+    sf::Event event;
+
+    while (window.pollEvent(event))
+    {
+        if (event.type == sf::Event::Closed)
+            window.close();
+    }
+    window.clear();
+
+    for (int i = 0; i < (int)Board.size(); i++)
+    {
+        for (int j = 0; j < (int)Board[0].size(); j++)
+        {
+            if (Board[i][j])
+            {
+                temp = shape;
+                temp.move(i * (cells_size + cells_distance), j * (cells_size + cells_distance));
+                window.draw(temp);
+            }
+        }
+        std::cout << "\n";
+    }
+    window.display();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds((int)(1000 / speed)));
+}
+void Place(std::vector<std::vector<bool>> &Board, int x, int y, const std::vector<std::vector<bool>> &pattern)
+{
+    for (int i = 0; i < (int)pattern.size(); i++)
+    {
+        for (int j = 0; j < (int)pattern[0].size(); j++)
+        {
+            Board[x + i][y + j] = pattern[i][j];
+            // cout<<pattern[i][j];
+        }
+        // cout<<"\n";
+    }
+}
+
+template <bool Use_GUI>
+void GameOfLife(int argc, char const *argv[]);
+template <>
+void GameOfLife<true>(int argc, char const *argv[])
 {
     //values not used
     int x = 0, y = 0, xsize = 11, ysize = 11, iter = 1, xpattern = 3, ypattern = 3;
@@ -39,15 +117,43 @@ int main(int argc, char const *argv[])
     std::vector<std::vector<bool>> Board(xsize, std::vector<bool>(ysize, 0));
 
     Decoding(Board, repr, x, y);
-
-    Draw(Board, speed);
+    Draw_result<1>(Board, speed);
     for (int i = 0; i < iter; i++)
     {
         Next(Board);
-        Draw(Board, speed);
+        Draw_result<1>(Board, speed);
     }
 
     SaveToFile(Board, "save.txt");
+}
+template <>
+void GameOfLife<false>(int argc, char const *argv[])
+{
+    //values not used
+    int x = 0, y = 0, xsize = 11, ysize = 11, iter = 1, xpattern = 3, ypattern = 3;
+    float speed = 0;
+    string map;
+    //cli
+    SetVariables(x, y, xsize, ysize, iter, speed, map, argc, argv);
+    string repr = ReadFromFile(map, xpattern, ypattern);
+    std::vector<std::vector<bool>> Board(xsize, std::vector<bool>(ysize, 0));
+
+    Decoding(Board, repr, x, y);
+    Draw_result<0>(Board, speed);
+    for (int i = 0; i < iter; i++)
+    {
+        Next(Board);
+        Draw_result<0>(Board, speed);
+    }
+
+    SaveToFile(Board, "save.txt");
+}
+
+constexpr bool draw_gui = 1;
+
+int main(int argc, char const *argv[])
+{
+    GameOfLife<draw_gui>(argc, argv);
     return 0;
 }
 
@@ -97,42 +203,7 @@ void Next(std::vector<std::vector<bool>> &Board)
         }
     }
 }
-
-void Draw(std::vector<std::vector<bool>> const &Board, float speed = 1)
-{
-    for (size_t i = 0; i < 10; i++)
-    {
-        std::cout << "\n";
-    }
-
-    for (int i = 0; i < (int)Board.size(); i++)
-    {
-        for (int j = 0; j < (int)Board[0].size(); j++)
-        {
-            if (Board[i][j])
-                std::cout << 0;
-            else
-                std::cout << " ";
-        }
-        std::cout << "\n";
-    }
-
-    std::cout << "\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds((int)(1000 / speed)));
-}
-
-void Place(std::vector<std::vector<bool>> &Board, int x, int y, const std::vector<std::vector<bool>> &pattern)
-{
-    for (int i = 0; i < (int)pattern.size(); i++)
-    {
-        for (int j = 0; j < (int)pattern[0].size(); j++)
-        {
-            Board[x + i][y + j] = pattern[i][j];
-            // cout<<pattern[i][j];
-        }
-        // cout<<"\n";
-    }
-}
+//void Draw_result(std::vector<std::vector<bool>> const &Board, float speed = 1);
 
 void SetVariables(int &x, int &y, int &xsize, int &ysize, int &iter, float &speed, string &map, int &argc, const char **argv)
 {
@@ -317,8 +388,9 @@ void SaveToFile(vector<vector<bool>> Board, string filename = "save.txt")
         {
             size_t counter = 0;
             //check if first line empty
-            if(all_of(Board[i].begin(), Board[i].end(), [](int i) { return i==0; })){
-                repr+='$';
+            if (all_of(Board[i].begin(), Board[i].end(), [](int i) { return i == 0; }))
+            {
+                repr += '$';
                 i++;
             }
 
@@ -352,7 +424,7 @@ void SaveToFile(vector<vector<bool>> Board, string filename = "save.txt")
                                 repr += 'o';
                             }
                         }
-                        repr+='$';
+                        repr += '$';
                         //finish
                     }
                 }
@@ -394,34 +466,38 @@ void SaveToFile(vector<vector<bool>> Board, string filename = "save.txt")
                                 repr += (char)('0' + counter);
                             repr += 'b';
                         }
-                         repr += '$';
+                        repr += '$';
                     }
                 }
             }
         }
-        int moneycounter=0;
-        string result="";
+        int moneycounter = 0;
+        string result = "";
         for (size_t i = 0; i < repr.size(); i++)
         {
-            if (repr[i]!='$'){
-                result+=repr[i];
+            if (repr[i] != '$')
+            {
+                result += repr[i];
             }
-            while(repr[i]=='$'){
+            while (repr[i] == '$')
+            {
                 moneycounter++;
                 i++;
             }
-            if (moneycounter==1){
-                result+='$';
-                moneycounter=0;
-            }            
-            if (moneycounter!=0){
-                result+=((char)moneycounter+'0');
-                result+='$';
+            if (moneycounter == 1)
+            {
+                result += '$';
+                moneycounter = 0;
+            }
+            if (moneycounter != 0)
+            {
+                result += ((char)moneycounter + '0');
+                result += '$';
 
-                moneycounter=0;
+                moneycounter = 0;
             }
         }
-        
+
         file << result;
     }
     catch (const std::exception &e)
